@@ -1,13 +1,19 @@
 package meteor
 
+import com.google.gson.GsonBuilder
 import dev.kord.common.entity.PresenceStatus
 import dev.kord.common.entity.Snowflake
 import dev.kord.core.Kord
 import dev.kord.core.behavior.channel.edit
+import dev.kord.core.behavior.interaction.response.respond
 import dev.kord.core.entity.channel.VoiceChannel
-import dev.kord.core.supplier.EntitySupplyStrategy
-import dev.kord.rest.builder.channel.VoiceChannelModifyBuilder
+import dev.kord.core.event.interaction.GlobalChatInputCommandInteractionCreateEvent
+import dev.kord.core.on
 import kotlinx.coroutines.*
+import meteor.auth.AuthManager
+import meteor.rmi.handshake.HandshakeServer
+import meteor.rmi.handshake.HandshakeService
+import meteor.rmi.handshake.HandshakeServiceImpl
 import java.io.File
 import java.lang.Exception
 import java.net.URL
@@ -18,12 +24,16 @@ object Main {
     private val dataDir = File("./data/")
     private val peakSessionsFile = File("./data/peaksessions.txt")
     private var peakSessions = -1
+    private var handshakeService = HandshakeServer<HandshakeService>()
+    var gson = GsonBuilder().setPrettyPrinting().create()
     @JvmStatic
     fun main(args: Array<String>) {
 
         // init data dir
         if (!dataDir.exists())
             dataDir.mkdir()
+
+        AuthManager.loadUsers()
 
         // restore/init peak session count
         peakSessions = if (!peakSessionsFile.exists()) {
@@ -32,9 +42,22 @@ object Main {
         } else
             peakSessionsFile.readText().toInt()
 
+        handshakeService.publish(HandshakeServiceImpl)
+
         // kord must runBlocking
         runBlocking {
             kord = Kord(Secrets.botToken)
+            kord.createGlobalChatInputCommand("auth", "Generates your Meteor Auth key")
+            kord.on<GlobalChatInputCommandInteractionCreateEvent> {
+                val response = interaction.deferPublicResponse()
+                var user = AuthManager.getUser(interaction.user.id.value)
+                if (user != null)
+                    response.respond { content = "You are already registered with the following key: ${user!!.uuid}" }
+                else {
+                    user = AuthManager.createUser(interaction.user.id.value)
+                    response.respond { content = "Here is your Meteor auth key: ${user.uuid}" }
+                }
+            }
             scheduleSessionUpdating()
             kord.login()
         }

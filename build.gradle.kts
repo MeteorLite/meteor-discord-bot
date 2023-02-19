@@ -16,10 +16,12 @@ repositories {
 
 application {
     mainClass.set("meteor.Main")
+    applicationDefaultJvmArgs = listOf("-Djava.rmi.server.hostname=15.204.174.14")
 }
 
 dependencies {
     implementation("dev.kord:kord-core:0.8.x-SNAPSHOT")
+    implementation("com.google.code.gson:gson:2.10.1")
     runtimeOnly("org.slf4j:slf4j-simple:2.0.3")
 }
 
